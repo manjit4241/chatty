@@ -6,6 +6,15 @@ const { uploadSingle, deleteFile } = require('../middleware/upload');
 
 const router = express.Router();
 
+// Get socket.io instance
+let io;
+const setIO = (socketIO) => {
+  io = socketIO;
+};
+
+// Export the setIO function
+module.exports = { router, setIO };
+
 // Validation middleware
 const validateSendMessage = [
   body('content')
@@ -58,6 +67,16 @@ router.get('/:chatId', async (req, res) => {
 
     // Reset unread count for this chat
     await chat.resetUnreadCount(req.user._id);
+
+    // Emit socket event for read status update
+    if (io) {
+      io.to(chatId).emit('messages-read', {
+        chatId,
+        userId: req.user._id,
+        timestamp: new Date()
+      });
+      console.log(`💬 Socket event emitted for messages read in chat ${chatId}`);
+    }
 
     // Format messages for response
     const formattedMessages = messages.map(message => ({
@@ -266,6 +285,17 @@ router.post('/:chatId', validateSendMessage, async (req, res) => {
         message: formattedMessage
       }
     });
+
+    // Emit socket event for real-time updates
+    if (io) {
+      io.to(chatId).emit('new-message', {
+        chatId,
+        message: formattedMessage,
+        sender: req.user._id,
+        timestamp: new Date()
+      });
+      console.log(`💬 Socket event emitted for new message in chat ${chatId}`);
+    }
   } catch (error) {
     console.error('Send message error:', error);
     res.status(500).json({
@@ -387,6 +417,17 @@ router.post('/:chatId/upload', uploadSingle, async (req, res) => {
         message: formattedMessage
       }
     });
+
+    // Emit socket event for real-time updates
+    if (io) {
+      io.to(chatId).emit('new-message', {
+        chatId,
+        message: formattedMessage,
+        sender: req.user._id,
+        timestamp: new Date()
+      });
+      console.log(`💬 Socket event emitted for new media message in chat ${chatId}`);
+    }
   } catch (error) {
     console.error('Upload media message error:', error);
     res.status(500).json({
@@ -453,6 +494,18 @@ router.put('/:messageId', async (req, res) => {
         message: updatedMessage
       }
     });
+
+    // Emit socket event for real-time updates
+    if (io) {
+      const chatId = updatedMessage.chat.toString();
+      io.to(chatId).emit('message-updated', {
+        chatId,
+        message: updatedMessage,
+        sender: req.user._id,
+        timestamp: new Date()
+      });
+      console.log(`💬 Socket event emitted for message edit in chat ${chatId}`);
+    }
   } catch (error) {
     console.error('Edit message error:', error);
     res.status(500).json({
@@ -516,6 +569,18 @@ router.delete('/:messageId', async (req, res) => {
       success: true,
       message: 'Message deleted successfully'
     });
+
+    // Emit socket event for real-time updates
+    if (io) {
+      const chatId = message.chat.toString();
+      io.to(chatId).emit('message-deleted', {
+        chatId,
+        messageId: messageId,
+        sender: req.user._id,
+        timestamp: new Date()
+      });
+      console.log(`💬 Socket event emitted for message deletion in chat ${chatId}`);
+    }
   } catch (error) {
     console.error('Delete message error:', error);
     res.status(500).json({
@@ -572,6 +637,19 @@ router.post('/:messageId/reactions', async (req, res) => {
         message: updatedMessage
       }
     });
+
+    // Emit socket event for real-time updates
+    if (io) {
+      const chatId = updatedMessage.chat.toString();
+      io.to(chatId).emit('message-reaction-added', {
+        chatId,
+        messageId: messageId,
+        message: updatedMessage,
+        sender: req.user._id,
+        timestamp: new Date()
+      });
+      console.log(`💬 Socket event emitted for reaction added in chat ${chatId}`);
+    }
   } catch (error) {
     console.error('Add reaction error:', error);
     res.status(500).json({
@@ -607,11 +685,21 @@ router.delete('/:messageId/reactions', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Reaction removed successfully',
-      data: {
-        message: updatedMessage
-      }
+      message: 'Reaction removed successfully'
     });
+
+    // Emit socket event for real-time updates
+    if (io) {
+      const chatId = message.chat.toString();
+      io.to(chatId).emit('message-reaction-removed', {
+        chatId,
+        messageId: messageId,
+        message: message,
+        sender: req.user._id,
+        timestamp: new Date()
+      });
+      console.log(`💬 Socket event emitted for reaction removed in chat ${chatId}`);
+    }
   } catch (error) {
     console.error('Remove reaction error:', error);
     res.status(500).json({
@@ -620,6 +708,4 @@ router.delete('/:messageId/reactions', async (req, res) => {
     });
   }
 });
-
-module.exports = router;
 

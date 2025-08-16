@@ -11,7 +11,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const chatRoutes = require('./routes/chats');
-const messageRoutes = require('./routes/messages');
+const { router: messageRoutes, setIO } = require('./routes/messages');
 
 // Import middleware
 const { authenticateToken } = require('./middleware/auth');
@@ -24,6 +24,9 @@ const io = socketIo(server, {
     methods: ["GET", "POST"]
   }
 });
+
+// Pass socket.io instance to routes that need it
+setIO(io);
 
 // Security middleware
 app.use(helmet());
@@ -82,9 +85,14 @@ io.on('connection', (socket) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       connectedUsers.set(decoded.userId, socket.id);
       socket.userId = decoded.userId;
+      
+      // Emit authentication success
+      socket.emit('authenticated', { userId: decoded.userId });
+      
       console.log('✅ User authenticated:', decoded.userId);
     } catch (error) {
       console.log('❌ Authentication failed for socket:', socket.id);
+      socket.emit('authentication-error', { message: 'Invalid token' });
     }
   });
 
