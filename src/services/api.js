@@ -6,6 +6,8 @@ class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
     this.token = null;
+    this.cache = new Map(); // Add caching for better performance
+    this.cacheTimeout = 5 * 60 * 1000; // 5 minutes cache timeout
     // Load token on initialization
     this.loadTokens();
   }
@@ -32,25 +34,64 @@ class ApiService {
     return headers;
   }
 
-  // Generic request method
-  async request(endpoint, options = {}) {
+  // Cache management
+  getCacheKey(endpoint, params = {}) {
+    return `${endpoint}_${JSON.stringify(params)}`;
+  }
+
+  isCacheValid(cacheKey) {
+    const cached = this.cache.get(cacheKey);
+    if (!cached) return false;
+    
+    const now = Date.now();
+    return (now - cached.timestamp) < this.cacheTimeout;
+  }
+
+  setCache(cacheKey, data) {
+    this.cache.set(cacheKey, {
+      data,
+      timestamp: Date.now()
+    });
+  }
+
+  getCache(cacheKey) {
+    const cached = this.cache.get(cacheKey);
+    return cached ? cached.data : null;
+  }
+
+  clearCache() {
+    this.cache.clear();
+  }
+
+  // Generic request method with caching
+  async request(endpoint, options = {}, useCache = false) {
+    const cacheKey = this.getCacheKey(endpoint, options.body);
+    
+    // Check cache first if enabled
+    if (useCache && this.isCacheValid(cacheKey)) {
+      console.log(`📋 Using cached response for: ${endpoint}`);
+      return this.getCache(cacheKey);
+    }
+
     try {
       const url = `${this.baseURL}${endpoint}`;
       const config = {
-        headers: await this.getHeaders(), // Make this async to get fresh token
+        headers: await this.getHeaders(),
         ...options,
       };
 
       console.log(`🌐 Making request to: ${url}`);
-      console.log(`🔑 Using token: ${this.token ? 'Present' : 'Missing'}`);
 
       const response = await fetch(url, config);
       const data = await response.json();
 
-      console.log(`📥 Response from ${endpoint}:`, data);
-
       if (!response.ok) {
         throw new Error(data.message || `Request failed with status ${response.status}`);
+      }
+
+      // Cache successful responses if caching is enabled
+      if (useCache) {
+        this.setCache(cacheKey, data);
       }
 
       return data;
@@ -212,16 +253,19 @@ class ApiService {
     });
   }
 
-  // Chat APIs - FIXED to handle your backend response structure
-  async getChats() {
+  // Chat APIs - OPTIMIZED for better performance
+  async getChats(forceRefresh = false) {
     try {
-      const response = await this.request('/chats');
+      // Use cache unless force refresh is requested
+      const useCache = !forceRefresh;
+      const response = await this.request('/chats', {}, useCache);
       
       // Handle your backend's response structure: { success: true, data: { chats: [...] } }
       return {
         success: response.success || true,
         chats: response.data?.chats || response.chats || [],
         message: response.message,
+        cached: useCache && this.isCacheValid(this.getCacheKey('/chats')),
       };
     } catch (error) {
       console.error('Get chats error:', error);
@@ -233,12 +277,16 @@ class ApiService {
     }
   }
 
+  // Optimized chat creation with cache invalidation
   async createIndividualChat(participantId) {
     try {
       const response = await this.request('/chats/individual', {
         method: 'POST',
         body: JSON.stringify({ participantId }),
       });
+
+      // Invalidate chats cache when new chat is created
+      this.clearCache();
 
       return {
         success: response.success || true,
@@ -260,6 +308,9 @@ class ApiService {
         body: JSON.stringify(groupData),
       });
 
+      // Invalidate chats cache when new group is created
+      this.clearCache();
+
       return {
         success: response.success || true,
         chat: response.data?.chat || response.chat,
@@ -273,9 +324,10 @@ class ApiService {
     }
   }
 
-  async getChatById(chatId) {
+  // Optimized chat retrieval with caching
+  async getChatById(chatId, useCache = true) {
     try {
-      const response = await this.request(`/chats/${chatId}`);
+      const response = await this.request(`/chats/${chatId}`, {}, useCache);
       
       return {
         success: response.success || true,

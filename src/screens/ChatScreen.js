@@ -101,51 +101,124 @@ const ChatScreen = ({ navigation, route }) => {
   // Safely destructure route params with fallback
   const chat = route?.params?.chat || { _id: '', name: 'Unknown', isOnline: false };
   
+  // Get the chat ID consistently
+  const chatId = chat._id || chat.id;
+  
   const [messages, setMessages] = useState(mockMessages); // Start with mock data for testing
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [typingTimeout, setTypingTimeout] = useState(null);
 
   // Fetch messages when component mounts
   useEffect(() => {
-    if (chat._id) {
+    if (chatId) {
       fetchMessages();
       joinChatRoom();
       
       // Listen for new messages
-      const messageHandler = (message) => {
-        if (message.chatId === chat._id) {
-          setMessages(prev => [...prev, message]);
+      const messageHandler = (data) => {
+        console.log('💬 Message handler called with data:', data);
+        if (data.chatId === chatId) {
+          console.log('✅ Message is for this chat, processing...');
+          // Format the incoming message to match our message structure
+          const newMessage = {
+            id: data.message._id || data.message.id || Math.random().toString(),
+            _id: data.message._id || data.message.id || Math.random().toString(),
+            text: data.message.content || data.message.text || '',
+            content: data.message.content || data.message.text || '',
+            sender: data.message.sender === user?._id ? 'user' : 'other',
+            timestamp: new Date(data.message.createdAt || Date.now()).toLocaleTimeString([], { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }),
+            createdAt: data.message.createdAt || new Date().toISOString(),
+            type: data.message.type || 'text',
+          };
+          
+          console.log('📝 Formatted new message:', newMessage);
+          setMessages(prev => [...prev, newMessage]);
+        } else {
+          console.log('❌ Message is not for this chat. Expected:', chatId, 'Got:', data.chatId);
+        }
+      };
+
+      // Listen for message updates
+      const messageUpdateHandler = (data) => {
+        console.log('📝 Message update handler called with data:', data);
+        if (data.chatId === chatId) {
+          setMessages(prev => prev.map(msg => 
+            msg._id === data.message.id ? { ...msg, content: data.message.content, isEdited: true } : msg
+          ));
+        }
+      };
+
+      // Listen for message deletions
+      const messageDeleteHandler = (data) => {
+        console.log('🗑️ Message delete handler called with data:', data);
+        if (data.chatId === chatId) {
+          setMessages(prev => prev.filter(msg => msg._id !== data.messageId));
+        }
+      };
+
+      // Listen for message reactions
+      const messageReactionHandler = (data) => {
+        console.log('😀 Message reaction handler called with data:', data);
+        if (data.chatId === chatId) {
+          setMessages(prev => prev.map(msg => 
+            msg._id === data.messageId ? { ...msg, reactions: data.message.reactions || [] } : msg
+          ));
         }
       };
 
       // Listen for typing indicators
       const typingStartHandler = (data) => {
-        if (data.chatId === chat._id && data.userId !== user?._id) {
+        if (data.chatId === chatId && data.userId !== user?._id) {
           setIsTyping(true);
         }
       };
 
       const typingStopHandler = (data) => {
-        if (data.chatId === chat._id && data.userId !== user?._id) {
+        if (data.chatId === chatId && data.userId !== user?._id) {
           setIsTyping(false);
         }
       };
 
-      socketService.onMessageReceived(messageHandler);
-      socketService.onTypingStarted(typingStartHandler);
-      socketService.onTypingStopped(typingStopHandler);
+      socketService.onNewMessage(messageHandler);
+      socketService.onUserTyping(typingStartHandler);
+
+      // Set up additional socket listeners
+      if (socketService.socket) {
+        socketService.socket.on('message-updated', messageUpdateHandler);
+        socketService.socket.on('message-deleted', messageDeleteHandler);
+        socketService.socket.on('message-reaction-added', messageReactionHandler);
+        socketService.socket.on('message-reaction-removed', messageReactionHandler);
+        socketService.socket.on('user-stop-typing', typingStopHandler);
+      }
 
       return () => {
-        if (chat._id) {
-          socketService.leaveChatRoom(chat._id);
+        if (chatId) {
+          socketService.leaveChat(chatId);
         }
-        socketService.offMessageReceived();
-        socketService.offTypingStarted();
-        socketService.offTypingStopped();
+        socketService.removeListener('new-message');
+        socketService.removeListener('user-typing');
+        
+        // Remove additional socket listeners
+        if (socketService.socket) {
+          socketService.socket.off('message-updated');
+          socketService.socket.off('message-deleted');
+          socketService.socket.off('message-reaction-added');
+          socketService.socket.off('message-reaction-removed');
+          socketService.socket.off('user-stop-typing');
+        }
+        
+        // Clear typing timeout
+        if (typingTimeout) {
+          clearTimeout(typingTimeout);
+        }
       };
     }
-  }, [chat._id, user?._id]);
+  }, [chatId, user?._id]);
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -159,14 +232,14 @@ const ChatScreen = ({ navigation, route }) => {
   }, [messages]);
 
   const fetchMessages = async () => {
-    if (!chat._id) {
+    if (!chatId) {
       Alert.alert('Error', 'Invalid chat ID');
       return;
     }
 
     try {
       setIsLoading(true);
-      const response = await apiService.getMessages(chat._id);
+      const response = await apiService.getMessages(chatId);
       
       if (response?.success) {
         setMessages(response.messages || []);
@@ -182,26 +255,88 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   const joinChatRoom = () => {
-    if (chat._id) {
-      socketService.joinChatRoom(chat._id);
+    if (chatId) {
+      console.log('🔌 Attempting to join chat room:', chatId);
+      console.log('🔌 Socket service status:', socketService.getConnectionStatus());
+      
+      if (socketService.isSocketConnected()) {
+        socketService.joinChat(chatId);
+        console.log('✅ Successfully joined chat room:', chatId);
+      } else {
+        console.log('⚠️ Socket not connected or not authenticated, attempting to connect...');
+        socketService.connect().then(() => {
+          // Wait a bit for authentication to complete
+          setTimeout(() => {
+            if (socketService.isSocketConnected()) {
+              socketService.joinChat(chatId);
+              console.log('✅ Connected and joined chat room:', chatId);
+            } else {
+              console.log('⚠️ Still not authenticated, trying manual auth...');
+              socketService.authenticate().then(() => {
+                setTimeout(() => {
+                  socketService.joinChat(chatId);
+                  console.log('✅ Manually authenticated and joined chat room:', chatId);
+                }, 500);
+              });
+            }
+          }, 1000);
+        }).catch(error => {
+          console.error('❌ Failed to connect socket:', error);
+        });
+      }
     }
+  };
+
+  const handleTyping = (text) => {
+    setNewMessage(text);
+    
+    // Clear existing timeout
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+    
+    // Send typing start
+    if (text.trim() && chatId) {
+      socketService.sendTyping(chatId, true);
+    }
+    
+    // Set timeout to stop typing after 1 second of no input
+    const timeout = setTimeout(() => {
+      if (chatId) {
+        socketService.sendTyping(chatId, false);
+      }
+    }, 1000);
+    
+    setTypingTimeout(timeout);
   };
 
   const sendMessage = async () => {
     const trimmedMessage = newMessage.trim();
-    if (!trimmedMessage || !chat._id) return;
+    if (!trimmedMessage || !chatId) return;
+
+    console.log('📤 Attempting to send message:', trimmedMessage, 'to chat:', chatId);
 
     try {
-      const response = await apiService.sendMessage(chat._id, trimmedMessage);
+      // Stop typing indicator
+      socketService.sendTyping(chatId, false);
+      
+      const response = await apiService.sendMessage(chatId, {
+        content: trimmedMessage,
+        type: 'text'
+      });
+      
+      console.log('📤 API response:', response);
       
       if (response?.success) {
         setNewMessage('');
+        console.log('✅ Message sent successfully via API');
         // Message will be added via socket event
       } else {
+        console.error('❌ Failed to send message:', response?.message);
         Alert.alert('Error', response?.message || 'Failed to send message');
       }
     } catch (error) {
-      console.error('Send message error:', error);
+      console.error('❌ Send message error:', error);
       Alert.alert('Error', 'Failed to send message. Please try again.');
     }
   };
@@ -321,10 +456,6 @@ const ChatScreen = ({ navigation, route }) => {
     headerStatus: {
       fontSize: 14,
       color: colors?.textSecondary || '#666',
-    },
-    headerActions: {
-      flexDirection: 'row',
-      alignItems: 'center',
     },
     headerButton: {
       marginLeft: 15,
@@ -578,7 +709,7 @@ const ChatScreen = ({ navigation, route }) => {
             placeholder="Type here..."
             placeholderTextColor={colors?.placeholder || '#999'}
             value={newMessage}
-            onChangeText={setNewMessage}
+            onChangeText={handleTyping}
             multiline
             maxLength={1000}
           />
