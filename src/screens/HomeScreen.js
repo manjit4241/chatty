@@ -942,20 +942,7 @@ const HomeScreen = ({ navigation }) => {
               <Ionicons name="settings-outline" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
             
-            {/* Refresh Button */}
-            <TouchableOpacity
-              style={customStyles.headerButton}
-              onPress={forceRefreshChats}
-              disabled={isLoading}
-              accessibilityLabel="Refresh chats"
-              accessibilityHint="Manually refreshes the chat list"
-            >
-              <Ionicons 
-                name={isLoading ? "hourglass" : "refresh"} 
-                size={22} 
-                color={isLoading ? colors.textSecondary : colors.primary} 
-              />
-            </TouchableOpacity>
+            
             
             {/* Notification Indicator */}
             {totalUnreadCount > 0 && (

@@ -31,7 +31,7 @@ class SocketService {
       console.log('🔌 Attempting to connect socket with token...');
 
       // Connect to backend with optimized settings
-      this.socket = io('http://10.142.196.200:3000', {
+      this.socket = io('https://gossipc.onrender.com', {
         transports: ['websocket'], // Remove polling for better performance
         autoConnect: true,
         reconnection: true,

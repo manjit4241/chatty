@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'http://10.142.196.200:3000/api';
+const API_BASE_URL = 'https://gossipc.onrender.com/api';
 
 class ApiService {
   constructor() {

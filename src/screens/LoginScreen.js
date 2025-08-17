@@ -29,43 +29,62 @@ const LoginScreen = ({ navigation }) => {
   const [passwordFocused, setPasswordFocused] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+  if (!email || !password) {
+    Alert.alert('Error', 'Please fill in all fields');
+    return;
+  }
 
-    if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
+  if (!email.includes('@')) {
+    Alert.alert('Error', 'Please enter a valid email address');
+    return;
+  }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
+  if (password.length < 6) {
+    Alert.alert('Error', 'Password must be at least 6 characters');
+    return;
+  }
 
+  try {
     const result = await login(email, password);
-
-    if (result.success && result.token) {
-      try {
-        // Save token for socket.js
-        await AsyncStorage.setItem('authToken', result.token);
-        console.log('✅ Auth token saved for socket connection');
-        
-        // Connect socket after successful login
-        await socketService.reconnectWithToken();
-        console.log('✅ Socket connection initiated after login');
-        
-        navigation.replace('Home'); // Go to Home screen after login
-      } catch (err) {
-        console.error('Error saving token or connecting socket:', err);
-        // Still navigate even if socket fails
+    
+    // Add debugging to see what you're getting
+    console.log('Login result:', result);
+    
+    // Check for successful login - be more flexible with the check
+    if (result && (result.success || result.token)) {
+      const token = result.token || result.accessToken || result.authToken;
+      
+      if (token) {
+        try {
+          // Save token for socket.js
+          await AsyncStorage.setItem('authToken', token);
+          console.log('✅ Auth token saved for socket connection');
+          
+          // Connect socket after successful login
+          await socketService.reconnectWithToken();
+          console.log('✅ Socket connection initiated after login');
+          
+          navigation.replace('Home'); // Go to Home screen after login
+        } catch (err) {
+          console.error('Error saving token or connecting socket:', err);
+          // Still navigate even if socket fails
+          navigation.replace('Home');
+        }
+      } else {
+        // Login successful but no token - this might still be valid
+        console.log('Login successful but no token found');
         navigation.replace('Home');
       }
     } else {
-      Alert.alert('Error', result.error || 'Login failed');
+      // Only show error if login actually failed
+      const errorMessage = result?.error || result?.message || 'Login failed';
+      Alert.alert('Error', errorMessage);
     }
-  };
+  } catch (error) {
+    console.error('Login error:', error);
+    Alert.alert('Error', 'An error occurred during login');
+  }
+};
 
   const customStyles = {
     container: {
