@@ -931,6 +931,15 @@ const HomeScreen = ({ navigation }) => {
             )}
           </View>
           <View style={customStyles.headerActions}>
+            {/* Chat with AI Button */}
+            <TouchableOpacity
+              style={customStyles.headerButton}
+              onPress={() => navigation.navigate('Chat', { chat: { id: 'ai', _id: 'ai', name: 'AI Assistant', isOnline: true, type: 'ai' }, isAI: true })}
+              accessibilityLabel="Chat with AI"
+              accessibilityHint="Opens AI assistant chat"
+            >
+              <Ionicons name="bulb-outline" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
             
             {/* Settings Button */}
             <TouchableOpacity

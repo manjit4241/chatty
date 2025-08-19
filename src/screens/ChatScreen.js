@@ -100,11 +100,12 @@ const ChatScreen = ({ navigation, route }) => {
   
   // Safely destructure route params with fallback
   const chat = route?.params?.chat || { _id: '', name: 'Unknown', isOnline: false };
+  const isAIChat = chat?.type === 'ai' || chat?._id === 'ai' || chat?.id === 'ai' || route?.params?.isAI;
   
-  // Get the chat ID consistently
-  const chatId = chat._id || chat.id;
+  // Get the chat ID consistently (no chatId for AI mode)
+  const chatId = isAIChat ? null : (chat._id || chat.id);
   
-  const [messages, setMessages] = useState(mockMessages); // Start with mock data for testing
+  const [messages, setMessages] = useState(isAIChat ? [] : mockMessages); // Start with mock data unless AI
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -112,6 +113,10 @@ const ChatScreen = ({ navigation, route }) => {
 
   // Fetch messages when component mounts
   useEffect(() => {
+    if (isAIChat) {
+      setIsLoading(false);
+      return;
+    }
     if (chatId) {
       fetchMessages();
       joinChatRoom();
@@ -218,7 +223,7 @@ const ChatScreen = ({ navigation, route }) => {
         }
       };
     }
-  }, [chatId, user?._id]);
+  }, [chatId, user?._id, isAIChat]);
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -255,6 +260,7 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   const joinChatRoom = () => {
+    if (isAIChat) return;
     if (chatId) {
       console.log('🔌 Attempting to join chat room:', chatId);
       console.log('🔌 Socket service status:', socketService.getConnectionStatus());
@@ -296,13 +302,13 @@ const ChatScreen = ({ navigation, route }) => {
     }
     
     // Send typing start
-    if (text.trim() && chatId) {
+    if (!isAIChat && text.trim() && chatId) {
       socketService.sendTyping(chatId, true);
     }
     
     // Set timeout to stop typing after 1 second of no input
     const timeout = setTimeout(() => {
-      if (chatId) {
+      if (!isAIChat && chatId) {
         socketService.sendTyping(chatId, false);
       }
     }, 1000);
@@ -312,11 +318,56 @@ const ChatScreen = ({ navigation, route }) => {
 
   const sendMessage = async () => {
     const trimmedMessage = newMessage.trim();
-    if (!trimmedMessage || !chatId) return;
+    if (!trimmedMessage) return;
 
-    console.log('📤 Attempting to send message:', trimmedMessage, 'to chat:', chatId);
+    console.log('📤 Attempting to send message:', trimmedMessage, 'to chat:', chatId || 'AI');
 
     try {
+      if (isAIChat) {
+        // Immediately append user message locally
+        const userMsg = {
+          id: Math.random().toString(),
+          _id: Math.random().toString(),
+          text: trimmedMessage,
+          content: trimmedMessage,
+          sender: 'user',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          createdAt: new Date().toISOString(),
+          type: 'text',
+        };
+        setMessages(prev => [...prev, userMsg]);
+        setNewMessage('');
+        setIsTyping(true);
+
+        // Build message history for AI
+        const history = [...messages, userMsg].map(m => ({
+          role: (m.sender === 'user' || m.sender === user?._id) ? 'user' : 'assistant',
+          content: m.content || m.text || ''
+        }));
+
+        const aiResponse = await apiService.aiChat({ messages: history });
+        setIsTyping(false);
+
+        if (aiResponse.success && aiResponse.reply) {
+          const aiMsg = {
+            id: Math.random().toString(),
+            _id: Math.random().toString(),
+            text: aiResponse.reply,
+            content: aiResponse.reply,
+            sender: 'other',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            createdAt: new Date().toISOString(),
+            type: 'text',
+          };
+          setMessages(prev => [...prev, aiMsg]);
+        } else {
+          Alert.alert('AI Error', aiResponse.message || 'Failed to get AI reply');
+        }
+        return;
+      }
+
+      if (!chatId) return;
+
       // Stop typing indicator
       socketService.sendTyping(chatId, false);
       
@@ -649,9 +700,9 @@ const ChatScreen = ({ navigation, route }) => {
         
         <View style={customStyles.avatar}>
           <Text style={customStyles.avatarText}>
-            {(chat.name || 'U').charAt(0).toUpperCase()}
+            {(isAIChat ? 'A' : (chat.name || 'U')).charAt(0).toUpperCase()}
           </Text>
-          {chat.isOnline && (
+          {(isAIChat || chat.isOnline) && (
             <View style={[
               styles?.statusActive || { 
                 width: 12, 
@@ -667,9 +718,9 @@ const ChatScreen = ({ navigation, route }) => {
         </View>
         
         <View style={customStyles.headerInfo}>
-          <Text style={customStyles.headerName}>{chat.name || 'Unknown'}</Text>
+          <Text style={customStyles.headerName}>{isAIChat ? 'AI Assistant' : (chat.name || 'Unknown')}</Text>
           <Text style={customStyles.headerStatus}>
-            {isTyping ? 'Typing...' : (chat.isOnline ? 'Active now' : 'Last seen recently')}
+            {isTyping ? 'Typing...' : (isAIChat ? 'Online' : (chat.isOnline ? 'Active now' : 'Last seen recently'))}
           </Text>
         </View>
       </View>

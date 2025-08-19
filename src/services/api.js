@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'https://gossipc.onrender.com/api';
+const API_BASE_URL = 'https://newgossipc.onrender.com/api';
 
 class ApiService {
   constructor() {
@@ -440,6 +440,28 @@ class ApiService {
     return this.request(`/messages/${messageId}/reactions`, {
       method: 'DELETE',
     });
+  }
+
+  // AI Chat API
+  async aiChat({ messages, prompt, model = 'gpt-4o-mini', temperature = 0.7 }) {
+    try {
+      const response = await this.request(`/ai/chat`, {
+        method: 'POST',
+        body: JSON.stringify({ messages, prompt, model, temperature })
+      });
+
+      return {
+        success: response.success || true,
+        reply: response.data?.reply || response.reply,
+        message: response.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        reply: '',
+        message: error.message,
+      };
+    }
   }
 
   // Storage helpers - FIXED to use 'authToken' key consistently
