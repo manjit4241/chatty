@@ -11,9 +11,7 @@ const fetchFn = typeof fetch === 'function'
 router.post('/chat', async (req, res) => {
   try {
     const geminiKey = process.env.GEMINI_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
-
-    const { messages = [], prompt, model = 'gpt-4o-mini', temperature = 0.7 } = req.body || {};
+    const { messages = [], prompt, model = 'gemini-1.5-flash', temperature = 0.7 } = req.body || {};
 
     let chatMessages = Array.isArray(messages) ? messages.slice(-20) : [];
     if (!chatMessages.length && typeof prompt === 'string' && prompt.trim().length > 0) {
@@ -27,7 +25,7 @@ router.post('/chat', async (req, res) => {
       return res.status(400).json({ success: false, message: 'messages or prompt is required' });
     }
 
-    // Prefer Gemini if key is set; otherwise fallback to OpenAI if configured
+    // Require Gemini key and use Gemini only
     if (geminiKey) {
       // Map our messages to Gemini format
       let systemInstructionText = '';
@@ -69,38 +67,7 @@ router.post('/chat', async (req, res) => {
       return res.json({ success: true, data: { reply } });
     }
 
-    if (!openaiKey) {
-      return res.status(500).json({ success: false, message: 'No AI provider configured. Set GEMINI_API_KEY (preferred) or OPENAI_API_KEY on server.' });
-    }
-
-    // Fallback to OpenAI
-    // Ensure there is a guiding system prompt
-    const hasSystem = chatMessages.some(m => m.role === 'system');
-    if (!hasSystem) {
-      chatMessages.unshift({ role: 'system', content: 'You are an accurate, concise assistant in a mobile chat app.' });
-    }
-
-    const response = await fetchFn('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        messages: chatMessages,
-        temperature,
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      const message = data?.error?.message || `OpenAI API error (status ${response.status})`;
-      return res.status(response.status).json({ success: false, message });
-    }
-
-    const reply = data?.choices?.[0]?.message?.content || '';
-    return res.json({ success: true, data: { reply } });
+    return res.status(500).json({ success: false, message: 'GEMINI_API_KEY not configured on server' });
   } catch (error) {
     console.error('AI chat error:', error);
     return res.status(500).json({ success: false, message: 'Server error while contacting AI' });
