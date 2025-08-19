@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'https://newgossipc.onrender.com/api';
+const API_BASE_URL = 'https://chat-api-63ow.onrender.com/api';
 
 class ApiService {
   constructor() {
