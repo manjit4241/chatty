@@ -12,6 +12,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const chatRoutes = require('./routes/chats');
 const { router: messageRoutes, setIO } = require('./routes/messages');
+const aiRoutes = require('./routes/ai');
 
 // Import middleware
 const { authenticateToken } = require('./middleware/auth');
@@ -62,6 +63,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/chats', authenticateToken, chatRoutes);
 app.use('/api/messages', authenticateToken, messageRoutes);
+app.use('/api/ai', authenticateToken, aiRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
