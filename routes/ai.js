@@ -11,7 +11,7 @@ const fetchFn = typeof fetch === 'function'
 router.post('/chat', async (req, res) => {
   try {
     const geminiKey = process.env.GEMINI_API_KEY;
-    const { messages = [], prompt, model = 'gemini-1.5-flash', temperature = 0.7 } = req.body || {};
+    const { messages = [], prompt, model = 'gemini-2.0-flash', temperature = 0.7 } = req.body || {};
 
     let chatMessages = Array.isArray(messages) ? messages.slice(-20) : [];
     if (!chatMessages.length && typeof prompt === 'string' && prompt.trim().length > 0) {
@@ -44,7 +44,16 @@ router.post('/chat', async (req, res) => {
         systemInstructionText = 'You are an accurate, concise assistant in a mobile chat app.';
       }
 
-      const geminiModel = (typeof model === 'string' && model.startsWith('gemini')) ? model : 'gemini-1.5-flash';
+      // Map deprecated/unavailable model names to current supported equivalents
+      const MODEL_ALIASES = {
+        'gemini-1.5-flash':        'gemini-2.0-flash',
+        'gemini-1.5-flash-latest': 'gemini-2.0-flash',
+        'gemini-1.5-pro':          'gemini-2.0-flash',
+        'gemini-1.5-pro-latest':   'gemini-2.0-flash',
+        'gemini-pro':              'gemini-2.0-flash',
+      };
+      const rawModel = (typeof model === 'string' && model.startsWith('gemini')) ? model : 'gemini-2.0-flash';
+      const geminiModel = MODEL_ALIASES[rawModel] ?? rawModel;
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${geminiKey}`;
 
       const response = await fetchFn(url, {
