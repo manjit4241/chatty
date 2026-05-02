@@ -18,6 +18,13 @@ A complete backend API for the ChatApp with real-time messaging, user authentica
   - Read receipts and delivery status
   - Typing indicators
 
+- **AI Assistant** *(NEW)*
+  - Multi-provider AI chat via `/api/ai/chat`
+  - **Groq**: llama3-8b, llama3-70b, llama-3.1, llama-3.3, mixtral, gemma2
+  - **Gemini**: gemini-2.0-flash (with legacy model aliasing)
+  - Automatic provider routing based on model name
+  - Full conversation history support (last 20 messages)
+
 - **User Management**
   - User profiles with customizable information
   - Profile photo upload with Cloudinary
@@ -53,6 +60,7 @@ A complete backend API for the ChatApp with real-time messaging, user authentica
 - **Authentication**: JWT (JSON Web Tokens)
 - **Real-time**: Socket.IO
 - **File Upload**: Multer + Cloudinary
+- **AI Providers**: Groq API, Google Gemini API
 - **Validation**: Express-validator
 - **Security**: Helmet, bcryptjs
 - **Rate Limiting**: Express-rate-limit
@@ -314,7 +322,8 @@ backend/
 │   ├── auth.js
 │   ├── users.js
 │   ├── chats.js
-│   └── messages.js
+│   ├── messages.js
+│   └── ai.js         # ← Groq + Gemini AI chat
 ├── middleware/       # Custom middleware
 │   ├── auth.js
 │   └── upload.js
@@ -336,6 +345,10 @@ CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
 FRONTEND_URL=https://yourdomain.com
+
+# AI Providers (at least one required for AI features)
+GROQ_API_KEY=your-groq-api-key
+GEMINI_API_KEY=your-gemini-api-key
 ```
 
 ### Build and Deploy
