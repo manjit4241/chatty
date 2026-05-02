@@ -112,12 +112,21 @@ router.post('/individual', async (req, res) => {
       });
     }
 
+    // Validate that participantId is a valid MongoDB ObjectId BEFORE querying
+    const mongoose = require('mongoose');
+    if (!mongoose.Types.ObjectId.isValid(participantId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid User ID format. Please enter a valid User ID.'
+      });
+    }
+
     // Check if participant exists
     const participant = await User.findById(participantId);
     if (!participant || !participant.isActive) {
       return res.status(404).json({
         success: false,
-        message: 'Participant not found'
+        message: 'User not found with that ID'
       });
     }
 
@@ -133,9 +142,17 @@ router.post('/individual', async (req, res) => {
     const chat = await Chat.findOrCreateIndividualChat(req.user._id, participantId);
 
     // Format chat for response
-    const otherParticipant = chat.participants.find(
+    const validParticipants = chat.participants.filter(p => p.user != null);
+    const otherParticipant = validParticipants.find(
       p => p.user._id.toString() !== req.user._id.toString()
     );
+
+    if (!otherParticipant) {
+      return res.status(500).json({
+        success: false,
+        message: 'Could not resolve chat participants'
+      });
+    }
 
     const formattedChat = {
       id: chat._id,
@@ -145,7 +162,7 @@ router.post('/individual', async (req, res) => {
       lastMessage: null,
       lastMessageAt: chat.lastMessageAt,
       unreadCount: 0,
-      participants: chat.participants.map(p => ({
+      participants: validParticipants.map(p => ({
         id: p.user._id,
         name: p.user.name,
         profilePhoto: p.user.profilePhoto,
@@ -166,6 +183,7 @@ router.post('/individual', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error'
+    });
     });
   }
 });
