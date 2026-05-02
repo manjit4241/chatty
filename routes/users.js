@@ -68,16 +68,25 @@ router.put('/profile', validateProfileUpdate, async (req, res) => {
 
     const { name, bio, phoneNumber, location, dateOfBirth } = req.body;
 
+    // Build update object — only include fields that were actually sent
+    const updateFields = {};
+    if (name          !== undefined) updateFields.name        = name;
+    if (bio           !== undefined) updateFields.bio         = bio;
+    if (phoneNumber   !== undefined) updateFields.phoneNumber = phoneNumber;
+    if (location      !== undefined) updateFields.location    = location;
+    if (dateOfBirth   !== undefined) updateFields.dateOfBirth = new Date(dateOfBirth);
+
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No fields provided to update'
+      });
+    }
+
     // Update user
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
-      {
-        name,
-        bio,
-        phoneNumber,
-        location,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined
-      },
+      { $set: updateFields },
       { new: true, runValidators: true }
     ).select('-password -refreshToken');
 
