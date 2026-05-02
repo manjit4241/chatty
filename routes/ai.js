@@ -24,7 +24,7 @@ router.post('/chat', async (req, res) => {
     const geminiKey = process.env.GEMINI_API_KEY;
     const groqKey   = process.env.GROQ_API_KEY;
 
-    const { messages = [], prompt, model = 'gemini-2.0-flash', temperature = 0.7 } = req.body || {};
+    const { messages = [], prompt, model = 'llama3-70b-8192', temperature = 0.7 } = req.body || {};
 
     let chatMessages = Array.isArray(messages) ? messages.slice(-20) : [];
     if (!chatMessages.length && typeof prompt === 'string' && prompt.trim().length > 0) {
