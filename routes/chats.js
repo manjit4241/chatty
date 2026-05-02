@@ -42,7 +42,10 @@ router.get('/', async (req, res) => {
 
     // Format chats for frontend
     const formattedChats = chats.map(chat => {
-      const otherParticipants = chat.participants.filter(
+      // Guard: skip participants whose user reference was deleted from DB
+      const validParticipants = chat.participants.filter(p => p.user != null);
+
+      const otherParticipants = validParticipants.filter(
         p => p.user._id.toString() !== req.user._id.toString()
       );
 
@@ -65,7 +68,7 @@ router.get('/', async (req, res) => {
         } : null,
         lastMessageAt: chat.lastMessageAt,
         unreadCount: chat.unreadCount.get(req.user._id.toString()) || 0,
-        participants: chat.participants.map(p => ({
+        participants: validParticipants.map(p => ({
           id: p.user._id,
           name: p.user.name,
           profilePhoto: p.user.profilePhoto,
@@ -291,7 +294,9 @@ router.get('/:chatId', async (req, res) => {
     }
 
     // Format chat for response
-    const otherParticipants = chat.participants.filter(
+    const validParticipants = chat.participants.filter(p => p.user != null);
+
+    const otherParticipants = validParticipants.filter(
       p => p.user._id.toString() !== req.user._id.toString()
     );
 
@@ -313,7 +318,7 @@ router.get('/:chatId', async (req, res) => {
       } : null,
       lastMessageAt: chat.lastMessageAt,
       unreadCount: chat.unreadCount.get(req.user._id.toString()) || 0,
-      participants: chat.participants.map(p => ({
+      participants: validParticipants.map(p => ({
         id: p.user._id,
         name: p.user.name,
         profilePhoto: p.user.profilePhoto,
